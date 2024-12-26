@@ -2,19 +2,28 @@
 
 A PySide6-based GUI application to download YouTube videos, music, and thumbnails. This app uses `yt-dlp` for downloading and `pygame` for audio playback.
 
+## Preview 😊
+[Download Example Video](examples/example.mp4)
+
+
 ## Features ✨
 
 - **Validate YouTube Links** ✅: Ensure the link is valid before downloading.
-- **Download Options** 📥:
+- **Download Options** 📝:
   - Download YouTube thumbnails as `.jpg`. 🖼️
   - Extract and download audio in `.mp3` format. 🎵
-  - Download videos in the best available format. 📹
+  - Download videos in the best available format. 📽️
 - **Folder Navigation** 📂:
   - Open folders for thumbnails, music, and videos directly from the app.
 - **Audio Playback** 🎧:
   - Play the most recently downloaded audio or video file. ▶️
   - Stop playback anytime. ⏹️
 - **User-Friendly Logs** 📜: View real-time logs for download progress and playback.
+
+## Notices 🚨
+
+- **Validation Delay**: Validating a link may take some time depending on the video's metadata size. Please be patient. ⏳
+- **Playback Bugs**: The audio playback feature might encounter issues with some files. This is due to `pygame` limitations for certain file formats. ⚠️
 
 ## Installation 🛠️
 
@@ -64,13 +73,15 @@ python main.py
 │   └── video/           # Folder for downloaded video files
 ```
 
-## Usage 🖱️
+## Usage 🛠️
 
 1. **Enter a YouTube Link**: Paste the YouTube link into the input field. 🔗
 2. **Validate the Link**: Click the "Validate Link" button. ✔️
+   - **Note**: Validating a link may take some time depending on the video's metadata size. Please be patient.
 3. **Download Options**: Choose to download the thumbnail, music, or video. ⬇️
 4. **Access Files**: Use the "Open Folder" buttons to quickly access your downloads. 📂
 5. **Play Audio**: Use the "Play" button to listen to downloaded audio or video. 🎶
+   - **Note**: The audio playback feature might encounter issues with some files. This is due to `pygame` limitations for certain file formats.
 
 ## Screenshots 📸
 
@@ -84,17 +95,13 @@ python main.py
 
 Contributions are welcome! Please fork the repository and create a pull request for any changes.
 
-## License 📄
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+## Acknowledgments 🙏
 
-## Acknowledgments 🙌
-
-- `yt-dlp` for the core downloading functionality. 📥
+- `yt-dlp` for the core downloading functionality. 📅
 - `pygame` for audio playback. 🎧
 - `PySide6` for the beautiful GUI framework. 💻
 
 ---
 
 Happy Downloading! 🎉
-
