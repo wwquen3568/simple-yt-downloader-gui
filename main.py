@@ -213,6 +213,7 @@ class MainWindow(QMainWindow):
         if not self.valid_link:
             return
         custom_name = self.custom_name_input.text().strip()
+        unique_filename = self.generate_unique_filename(custom_name or '%(title)s', self.music_dir, 'mp3')
         options = {
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -220,7 +221,8 @@ class MainWindow(QMainWindow):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'outtmpl': os.path.join(self.music_dir, f'{custom_name or "%(title)s"}.%(ext)s'),
+            'outtmpl': unique_filename,  # Unique filename for yt-dlp
+            'nooverwrites': True  # Prevent overwriting existing files
         }
         self.start_download(options)
 
@@ -228,11 +230,23 @@ class MainWindow(QMainWindow):
         if not self.valid_link:
             return
         custom_name = self.custom_name_input.text().strip()
+        unique_filename = self.generate_unique_filename(custom_name or '%(title)s', self.video_dir, 'mp4')
         options = {
             'format': 'best',
-            'outtmpl': os.path.join(self.video_dir, f'{custom_name or "%(title)s"}.%(ext)s'),
+            'outtmpl': unique_filename,  # Unique filename for yt-dlp
+            'nooverwrites': True  # Prevent overwriting existing files
         }
         self.start_download(options)
+
+    def generate_unique_filename(self, base, folder, ext):
+        os.makedirs(folder, exist_ok=True)
+        filename = os.path.join(folder, f"{base}.{ext}")
+        counter = 1
+        while os.path.exists(filename):
+            filename = os.path.join(folder, f"{base} ({counter}).{ext}")
+            counter += 1
+        return filename
+
 
     def start_download(self, options):
         self.download_thread = DownloadThread(self.url, options)
