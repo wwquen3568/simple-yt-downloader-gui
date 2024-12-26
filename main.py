@@ -1,11 +1,14 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QLabel, QPushButton, QTextEdit, QWidget, QLineEdit, QHBoxLayout
-from PySide6.QtCore import QThread, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QLabel, QPushButton, QTextEdit,
+    QWidget, QLineEdit, QGroupBox, QScrollArea
+)
+from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtGui import QPixmap
 import yt_dlp
 import os
 import re
-import webbrowser
-
+import requests
+import pygame
 
 def clean_ansi_escape_codes(text: str) -> str:
     """
@@ -48,9 +51,24 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        # Define project directory and result folder paths
+        self.project_dir = os.path.abspath(os.path.dirname(__file__))
+        self.result_dir = os.path.join(self.project_dir, "result")
+        self.thumbnails_dir = os.path.join(self.result_dir, "thumbnails")
+        self.music_dir = os.path.join(self.result_dir, "mp3")
+        self.video_dir = os.path.join(self.result_dir, "video")
+
+        # Create result folders if they don't exist
+        os.makedirs(self.thumbnails_dir, exist_ok=True)
+        os.makedirs(self.music_dir, exist_ok=True)
+        os.makedirs(self.video_dir, exist_ok=True)
+
+        # Initialize pygame mixer for audio playback
+        pygame.mixer.init()
+
         # Set up the UI
         self.setWindowTitle("YouTube Downloader")
-        self.setGeometry(200, 200, 800, 600)
+        self.setGeometry(200, 200, 900, 700)
 
         layout = QVBoxLayout()
 
@@ -65,44 +83,88 @@ class MainWindow(QMainWindow):
         self.validate_button.clicked.connect(self.validate_link)
         layout.addWidget(self.validate_button)
 
+        # Validation result section
+        self.validation_group = QGroupBox("Validation Result")
+        validation_layout = QVBoxLayout()
+
+        self.thumbnail_label = QLabel()
+        self.thumbnail_label.setPixmap(QPixmap())  # Placeholder for thumbnail
+        self.thumbnail_label.setAlignment(Qt.AlignCenter)
+        validation_layout.addWidget(self.thumbnail_label)
+
+        self.title_label = QLabel("No link validated yet.")
+        validation_layout.addWidget(self.title_label)
+
+        self.validation_group.setLayout(validation_layout)
+        layout.addWidget(self.validation_group)
+
+        # Optional input for custom name
+        self.custom_name_input = QLineEdit()
+        self.custom_name_input.setPlaceholderText("Custom file name (optional)")
+        self.custom_name_input.setEnabled(False)
+        layout.addWidget(self.custom_name_input)
+
         # Action buttons
         self.thumbnail_button = QPushButton("Download Thumbnail")
         self.music_button = QPushButton("Download Music")
         self.video_button = QPushButton("Download Video")
-        self.open_link_button = QPushButton("Open Link in Browser")
-        self.open_results_button = QPushButton("Open Results Folder")
+        self.open_thumbnails_folder_button = QPushButton("Open Thumbnails Folder")
+        self.open_music_folder_button = QPushButton("Open Music Folder")
+        self.open_video_folder_button = QPushButton("Open Videos Folder")
 
+        # Connect buttons to open folder paths
+        self.open_thumbnails_folder_button.clicked.connect(lambda: os.startfile(self.thumbnails_dir))
+        self.open_music_folder_button.clicked.connect(lambda: os.startfile(self.music_dir))
+        self.open_video_folder_button.clicked.connect(lambda: os.startfile(self.video_dir))
+
+        # Connect buttons
         self.thumbnail_button.clicked.connect(self.download_thumbnail)
         self.music_button.clicked.connect(self.download_music)
         self.video_button.clicked.connect(self.download_video)
-        self.open_link_button.clicked.connect(self.open_link)
-        self.open_results_button.clicked.connect(lambda: os.startfile("result"))
 
         # Disable buttons initially
-        self.thumbnail_button.setEnabled(False)
-        self.music_button.setEnabled(False)
-        self.video_button.setEnabled(False)
-        self.open_link_button.setEnabled(False)
-
-        for btn in [self.thumbnail_button, self.music_button, self.video_button, self.open_link_button]:
+        for btn in [
+            self.thumbnail_button, self.music_button, self.video_button
+        ]:
             layout.addWidget(btn)
+            btn.setEnabled(False)
+
+        layout.addWidget(self.open_thumbnails_folder_button)
+        layout.addWidget(self.open_music_folder_button)
+        layout.addWidget(self.open_video_folder_button)
 
         # Logs
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
         layout.addWidget(self.log_area)
 
-        self.progress_label = QLabel("Progress: 0%")
-        layout.addWidget(self.progress_label)
+        # Recently downloaded section
+        self.recently_downloaded_label = QLabel("Nothing was downloaded just yet...")
+        layout.addWidget(self.recently_downloaded_label)
 
-        # Container
+        self.play_button = QPushButton("Play")
+        self.stop_button = QPushButton("Stop")
+        self.play_button.setEnabled(False)
+        self.stop_button.setEnabled(False)
+        layout.addWidget(self.play_button)
+        layout.addWidget(self.stop_button)
+
+        self.play_button.clicked.connect(self.play_recent)
+        self.stop_button.clicked.connect(self.stop_playback)
+
+        # Scroll area
+        scroll_area = QScrollArea()
         container = QWidget()
         container.setLayout(layout)
-        self.setCentralWidget(container)
+        scroll_area.setWidget(container)
+        scroll_area.setWidgetResizable(True)
+
+        self.setCentralWidget(scroll_area)
 
         # Variables
         self.valid_link = False
         self.url = ""
+        self.recent_file = None
 
     def validate_link(self):
         self.url = self.link_input.text().strip()
@@ -110,83 +172,125 @@ class MainWindow(QMainWindow):
             try:
                 with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                     info = ydl.extract_info(self.url, download=False)
-                    self.log_area.append(f"Link Validated: {info['title']}")
+                    self.title_label.setText(f"Title: {info['title']}")
                     self.valid_link = True
+                    self.custom_name_input.setEnabled(True)
                     self.thumbnail_button.setEnabled(True)
                     self.music_button.setEnabled(True)
                     self.video_button.setEnabled(True)
-                    self.open_link_button.setEnabled(True)
+                    self.show_thumbnail(info['thumbnail'])
             except Exception as e:
-                self.log_area.append(f"Error: {str(e)}")
+                self.title_label.setText("Validation failed!")
                 self.valid_link = False
         else:
-            self.log_area.append("Invalid YouTube Link")
+            self.title_label.setText("Validation failed!")
             self.valid_link = False
+
+    def show_thumbnail(self, url):
+        response = requests.get(url)
+        pixmap = QPixmap()
+        pixmap.loadFromData(response.content)
+
+        # Resize the pixmap to a maximum size while maintaining aspect ratio
+        max_width = 300
+        max_height = 300
+        scaled_pixmap = pixmap.scaled(max_width, max_height, Qt.KeepAspectRatio)
+        self.thumbnail_label.setPixmap(scaled_pixmap)
 
     def download_thumbnail(self):
         if not self.valid_link:
             return
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info = ydl.extract_info(self.url, download=False)
-            thumbnail_url = info['thumbnail']
-            self.download_file(thumbnail_url, "result/thumbnails", f"{info['id']}.jpg")
-            self.log_area.append(f"Thumbnail downloaded: {thumbnail_url}")
+            title = info['title']
+            filename = self.generate_unique_filename(title, self.thumbnails_dir, "jpg")
+            response = requests.get(info['thumbnail'])
+            with open(filename, 'wb') as f:
+                f.write(response.content)
+            self.log_area.append(f"Downloaded thumbnail: {filename}")
 
     def download_music(self):
         if not self.valid_link:
             return
-        self.start_download({
+        custom_name = self.custom_name_input.text().strip()
+        options = {
             'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
-            'outtmpl': 'result/mp3/%(title)s.%(ext)s',
-        })
+            'outtmpl': os.path.join(self.music_dir, f'{custom_name or "%(title)s"}.%(ext)s'),
+        }
+        self.start_download(options)
 
     def download_video(self):
         if not self.valid_link:
             return
-        self.start_download({
+        custom_name = self.custom_name_input.text().strip()
+        options = {
             'format': 'best',
-            'outtmpl': 'result/video/%(title)s.%(ext)s',
-        })
-
-    def open_link(self):
-        if self.valid_link:
-            webbrowser.open(self.url)
+            'outtmpl': os.path.join(self.video_dir, f'{custom_name or "%(title)s"}.%(ext)s'),
+        }
+        self.start_download(options)
 
     def start_download(self, options):
         self.download_thread = DownloadThread(self.url, options)
         self.download_thread.progress_signal.connect(self.update_progress)
         self.download_thread.log_signal.connect(self.update_log)
+        self.download_thread.finished.connect(self.download_finished)
         self.download_thread.start()
 
     def update_progress(self, progress):
-        self.progress_label.setText(f"Progress: {progress}%")
+        pass
 
     def update_log(self, log_message):
-        # Clean the log message of ANSI escape codes before displaying
         cleaned_message = clean_ansi_escape_codes(log_message)
         self.log_area.append(cleaned_message)
 
-    def download_file(self, url, path, filename):
-        os.makedirs(path, exist_ok=True)
-        full_path = os.path.join(path, filename)
-        if os.path.exists(full_path):
-            base, ext = os.path.splitext(full_path)
-            counter = 1
-            while os.path.exists(full_path):
-                full_path = f"{base}({counter}){ext}"
-                counter += 1
-        with open(full_path, 'wb') as file:
-            file.write(requests.get(url).content)
+    def download_finished(self):
+        # Enable play button for the most recent file
+        self.recent_file = self.find_recent_file()
+        if self.recent_file:
+            self.recently_downloaded_label.setText(f"Recently downloaded: {self.recent_file}")
+            self.play_button.setEnabled(True)
+
+    def play_recent(self):
+        if self.recent_file:
+            try:
+                pygame.mixer.music.load(self.recent_file)
+                pygame.mixer.music.play()
+                self.log_area.append(f"Playing: {self.recent_file}")
+                self.stop_button.setEnabled(True)
+            except pygame.error as e:
+                self.log_area.append(f"Error playing file: {str(e)}")
+
+    def stop_playback(self):
+        pygame.mixer.music.stop()
+        self.log_area.append("Playback stopped.")
+        self.stop_button.setEnabled(False)
+
+    def find_recent_file(self):
+        # Check both music and video directories for the most recent file
+        recent_files = []
+        for folder in [self.music_dir, self.video_dir]:
+            for root, _, files in os.walk(folder):
+                for file in files:
+                    recent_files.append(os.path.join(root, file))
+        return max(recent_files, key=os.path.getctime, default=None)
+
+    def generate_unique_filename(self, base, folder, ext):
+        os.makedirs(folder, exist_ok=True)
+        filename = os.path.join(folder, f"{base}.{ext}")
+        counter = 1
+        while os.path.exists(filename):
+            filename = os.path.join(folder, f"{base} ({counter}).{ext}")
+            counter += 1
+        return filename
 
 
 if __name__ == "__main__":
     import sys
-    import requests
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
