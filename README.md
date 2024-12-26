@@ -68,7 +68,7 @@ python main.py
 .
 ├── main.py              # Main application file
 ├── requirements.txt     # Python dependencies
-├── logs/              # Output Logs
+├── logs/                # Output Logs
 ├── result/              # Output folder for downloads
 │   ├── thumbnails/      # Folder for downloaded thumbnails
 │   ├── mp3/             # Folder for downloaded audio files
