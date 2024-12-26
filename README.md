@@ -84,13 +84,6 @@ python main.py
 5. **Play Audio**: Use the "Play" button to listen to downloaded audio or video. 🎶
    - **Note**: The audio playback feature might encounter issues with some files. This is due to `pygame` limitations for certain file formats.
 
-## Screenshots 📸
-
-### Main Interface
-![Main Interface](https://via.placeholder.com/800x600.png?text=Main+Interface)
-
-### Logs
-![Logs](https://via.placeholder.com/800x600.png?text=Logs)
 
 ## Contributing 🤝
 
